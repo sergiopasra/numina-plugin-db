@@ -30,6 +30,7 @@ from numina.types.product import DataProductTag
 from numina.util.jsonencoder import ExtEncoder
 
 from .model import DataProduct, ReductionResult, ReductionResultValue
+from .dbkeys import DB_PRODUCT_KEYS
 
 
 def store_to(result, where):
@@ -50,27 +51,33 @@ class ProcessingTask(numina.user.helpers.ProcessingTask):
         self.session = session
         super(ProcessingTask, self).__init__(obsres, runinfo)
 
-    def store(self, where):
+
+
+class Backend(object):
+    def __init__(self, session):
+        self.logfile = 'processing.log'
+        self.session = session
+
+    def store(self, task, where):
         print('calling store to ', where)
         # save to disk the RecipeResult part and return the file to save it
         # saveres = self.result.store_to(where)
 
-        saveres = store_to(self.result, where)
+        saveres = store_to(task.result, where)
 
-        self.post_result_store(self.result, saveres)
+        self.post_result_store(task, saveres)
 
         with open(where.result, 'w+') as fd:
             json.dump(saveres, fd, indent=2, cls=ExtEncoder)
 
         out = {}
-        out['observation'] = self.observation
+        out['observation'] = task.observation
         out['result'] = where.result
-        out['runinfo'] = self.runinfo
+        out['runinfo'] = task.runinfo
 
-        logfile = 'processing.log'
-        relpathdir = os.path.relpath(self.runinfo['results_dir'], self.runinfo['base_dir'])
+        relpathdir = os.path.relpath(task.runinfo['results_dir'], task.runinfo['base_dir'])
 
-        full_logfile = os.path.join(relpathdir, logfile)
+        full_logfile = os.path.join(relpathdir, self.logfile)
         full_task = os.path.join(relpathdir, where.task)
         full_result = os.path.join(relpathdir, where.result)
 
@@ -81,22 +88,22 @@ class ProcessingTask(numina.user.helpers.ProcessingTask):
 
         return result
 
-    def post_result_store(self, result, saveres):
+    def post_result_store(self, task, saveres):
         session = self.session
-
+        result = task.result
         result_db = ReductionResult()
 
         # print(self.runinfo)
         # print(self.observation)
-        result_db.instrument_id = self.observation['instrument']
+        result_db.instrument_id = task.observation['instrument']
 
-        result_db.pipeline = self.runinfo['pipeline']
-        result_db.obsmode = self.observation['mode']
-        result_db.recipe = self.runinfo['recipe_full_name']
+        result_db.pipeline = task.runinfo['pipeline']
+        result_db.obsmode = task.observation['mode']
+        result_db.recipe = task.runinfo['recipe_full_name']
 
         # datatype = Column(String(45))
-        result_db.task_id = self.runinfo['taskid']
-        result_db.ob_id = self.observation['observing_result']
+        result_db.task_id = task.runinfo['taskid']
+        result_db.ob_id = task.observation['observing_result']
         # dateobs = Column(DateTime)
         if hasattr(result, 'qc'):
             result_db.qc = result.qc
@@ -106,8 +113,8 @@ class ProcessingTask(numina.user.helpers.ProcessingTask):
             if prod.dest != 'qc':
 
                 val = ReductionResultValue()
-                fullpath = os.path.join(self.runinfo['results_dir'], saveres[prod.dest])
-                relpath = os.path.relpath(fullpath, self.runinfo['base_dir'])
+                fullpath = os.path.join(task.runinfo['results_dir'], saveres[prod.dest])
+                relpath = os.path.relpath(fullpath, task.runinfo['base_dir'])
                 val.name = prod.dest
                 val.datatype = prod.type.name()
                 val.contents = relpath
@@ -115,60 +122,13 @@ class ProcessingTask(numina.user.helpers.ProcessingTask):
 
                 if isinstance(prod.type, DataProductTag):
                     product = DataProduct(datatype=prod.type.name(),
-                                          task_id=self.runinfo['taskid'],
-                                          instrument_id=self.observation['instrument'],
+                                          task_id=task.runinfo['taskid'],
+                                          instrument_id=task.observation['instrument'],
                                           contents=relpath
                                           )
                     product.result_value = val
                     internal_value = getattr(result, key)
-                    meta_info = internal_value.meta
-                    product.dateobs = meta_info['observation_date']
-                    product.uuid = meta_info['uuid']
-                    product.qc = meta_info['quality_control']
-                    master_tags = meta_info['tags']
-                    for k, v in master_tags.items():
-                        product[k] = v
-
-                    session.add(product)
-
-        session.commit()
-
-    def pre_result_store(self, result, saveres):
-        session = self.session
-
-        result_db = ReductionResult()
-        result_db.instrument_id = self.observation['instrument'].name
-        result_db.pipeline = self.runinfo['pipeline']
-        result_db.obsmode = self.observation['mode']
-        result_db.recipe = self.runinfo['recipe_full_name']
-        result_db.task_id = self.runinfo['taskid']
-        # dateobs = Column(DateTime)
-        if hasattr(result, 'qc'):
-            result_db.qc = result.qc
-
-        session.add(result_db)
-
-        for key, prod in result.stored().items():
-            if prod.dest != 'qc':
-
-                val = ReductionResultValue()
-                fullpath = os.path.join(self.runinfo['results_dir'], saveres[prod.dest])
-                relpath = os.path.relpath(fullpath, self.runinfo['base_dir'])
-                val.name = prod.dest
-                val.datatype = prod.type.name()
-                val.contents = relpath
-                result_db.values.append(val)
-
-                if isinstance(prod.type, DataProductTag):
-                    product = DataProduct(datatype=prod.type.name(),
-                                          task_id=self.runinfo['taskid'],
-                                          instrument_id=self.observation['instrument'],
-                                          contents=relpath
-                                          )
-                    product.result_value = val
-                    internal_value = getattr(result, key)
-                    print('extract meta info', prod.type, fullpath, internal_value)
-                    meta_info = prod.type.extract_db_info(fullpath)
+                    meta_info = prod.type.extract_db_info(internal_value, DB_PRODUCT_KEYS)
                     product.dateobs = meta_info['observation_date']
                     product.uuid = meta_info['uuid']
                     product.qc = meta_info['quality_control']

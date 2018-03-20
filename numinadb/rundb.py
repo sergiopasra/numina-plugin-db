@@ -30,7 +30,7 @@ import pkg_resources
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from numina.user.helpers import DiskStorageDefault
+from numina.user.helpers import DiskStorageDefault, ProcessingTask
 from numina.util.context import working_directory
 from numina.user.clirundal import run_recipe
 
@@ -38,7 +38,7 @@ from .model import Base
 from .model import DataProcessingTask
 
 from .dal import SqliteDAL, search_oblock_from_id
-from .helpers import ProcessingTask, WorkEnvironment
+from .helpers import WorkEnvironment, Backend
 from .control import mode_alias_add, mode_alias_del, mode_alias_list
 from .ingest import ingest_ob_file, ingest_dir, ingest_control_file
 
@@ -324,6 +324,8 @@ def reductionOB_request(dal, taskid, obid, mode_name=None, pipe_name='default'):
     datadir = dal.datadir
     basedir = dal.basedir
 
+    backend = Backend(session)
+
     with working_directory(datadir):
         obsres = dal.obsres_from_oblock_id(obid,
                                            override_mode=mode_name
@@ -391,7 +393,7 @@ def reductionOB_request(dal, taskid, obid, mode_name=None, pipe_name='default'):
         'instrument_configuration': None
     }
 
-    task = ProcessingTask(session, obsres, runinfo)
+    task = ProcessingTask(obsres, runinfo)
 
     # Copy files
     if True:
@@ -411,11 +413,14 @@ def reductionOB_request(dal, taskid, obid, mode_name=None, pipe_name='default'):
     completed_task = run_recipe(recipe=recipe,task=task, rinput=rinput,
                                 workenv=workenv, task_control=task_control)
 
+
     where = DiskStorageDefault(resultsdir=workenv.resultsdir)
     where.task = 'task.json'
     where.result = 'result.json'
 
-    result = where.store(completed_task)
+    with working_directory(workenv.resultsdir):
+        _logger.info('storing result')
+        result = backend.store(completed_task, where)
     return result
 
 

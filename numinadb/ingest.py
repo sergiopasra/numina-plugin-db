@@ -40,7 +40,15 @@ from .model import ObservingBlock, Frame, Fact, DataProduct
 from .event import call_event
 
 
-base_db_info_keys = [
+DB_PRODUCT_KEYS = [
+    'instrument',
+    'observation_date',
+    'uuid',
+    'quality_control'
+]
+
+
+DB_FRAME_KEYS = [
     'instrument',
     'object',
     'observation_date',
@@ -51,8 +59,11 @@ base_db_info_keys = [
     'darktime',
     'insconf',
     'blckuuid',
-    'quality_control'
+    'quality_control',
+    'vph',
+    'insmode'
 ]
+
 
 def metadata_fits(obj, drps):
 
@@ -66,14 +77,13 @@ def metadata_fits(obj, drps):
     this_drp = drps.query_by_name(instrument_id)
 
     datamodel = this_drp.datamodel
-    keys = datamodel.db_info_keys
-    result = DataFrameType(datamodel=datamodel).extract_db_info(obj, keys)
+    result = DataFrameType(datamodel=datamodel).extract_db_info(obj, DB_FRAME_KEYS)
     return result
 
 
 def metadata_lis(obj):
     """Extract metadata from serialized file"""
-    result = LinesCatalog().extract_db_info(obj, base_db_info_keys)
+    result = LinesCatalog().extract_db_info(obj, DB_PRODUCT_KEYS)
 
     head, tail = os.path.split(obj)
     base, ext = os.path.splitext(tail)
@@ -90,7 +100,7 @@ def metadata_lis(obj):
 def metadata_json(obj):
     """Extract metadata from serialized file"""
 
-    result = BaseStructuredCalibration().extract_meta_info(obj)
+    result = BaseStructuredCalibration().extract_db_info(obj, DB_PRODUCT_KEYS)
     return result
 
 
