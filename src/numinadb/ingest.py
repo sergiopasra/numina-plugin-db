@@ -1,31 +1,19 @@
 #
-# Copyright 2017 Universidad Complutense de Madrid
+# Copyright 2017-2025 Universidad Complutense de Madrid
 #
-# This file is part of Numina
+# This file is part of Numina DB
 #
-# Numina is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# Numina is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with Numina.  If not, see <http://www.gnu.org/licenses/>.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# License-Filename: LICENSE.txt
 #
 
 """Ingestion of different types."""
 
-from __future__ import print_function
-
-import uuid
 import datetime
 import os.path
+import pathlib
+import uuid
 
-import yaml
 from numina.core.oresult import ObservationResult
 from numina.types.frame import DataFrameType
 from numina.types.linescatalog import LinesCatalog
@@ -33,6 +21,7 @@ from numina.types.structured import BaseStructuredCalibration
 from numina.util.context import working_directory
 import numina.store
 import numina.drps
+import yaml
 
 from .model import RecipeParameters, RecipeParameterValues
 from .model import ObservingBlockAlias
@@ -58,7 +47,10 @@ base_db_info_keys = [
 def metadata_fits(obj, drps):
 
     # First. get instrument
-    objl = DataFrameType().convert(str(obj))
+    # workaround for PosixPath
+    if isinstance(obj, pathlib.PosixPath):
+        obj = str(obj)
+    objl = DataFrameType().convert(obj)
 
     with objl.open() as hdulist:
         # get instrument
@@ -68,12 +60,16 @@ def metadata_fits(obj, drps):
 
     datamodel = this_drp.datamodel
     keys = datamodel.db_info_keys
+    # workaround
     result = DataFrameType(datamodel=datamodel).extract_db_info(obj, keys)
     return result
 
 
 def metadata_lis(obj):
     """Extract metadata from serialized file"""
+    # workaround for PosixPath
+    if isinstance(obj, pathlib.PosixPath):
+        obj = str(obj)
     result = LinesCatalog().extract_db_info(obj, base_db_info_keys)
 
     head, tail = os.path.split(obj)
@@ -90,7 +86,9 @@ def metadata_lis(obj):
 
 def metadata_json(obj):
     """Extract metadata from serialized file"""
-
+    # workaround for PosixPath
+    if isinstance(obj, pathlib.PosixPath):
+        obj = str(obj)
     result = BaseStructuredCalibration().extract_meta_info(obj)
     return result
 
@@ -153,9 +151,10 @@ def ingest_control_file(session, path):
     session.commit()
 
 
-def ingest_ob_file(session, path):
+def ingest_ob_file(session, path, drps=None):
 
-    drps = numina.drps.get_system_drps()
+    if drps is None:
+        drps = numina.drps.get_system_drps()
     print(drps)
 
     print("mode ingest, ob file, path=", path)
@@ -213,7 +212,8 @@ def ingest_ob_file(session, path):
             newframe.uuid = meta['uuid']
             newframe.start_time = meta['observation_date']
             # No way of knowing when the readout ends...
-            newframe.completion_time = newframe.start_time + datetime.timedelta(seconds=meta['darktime'])
+            if meta['darktime'] is not None and newframe.start_time is not None:
+                newframe.completion_time = newframe.start_time + datetime.timedelta(seconds=meta['darktime'])
             newframe.exposure_time = meta['exptime']
             newframe.object = meta['object']
             ob.frames.append(newframe)
@@ -278,7 +278,7 @@ def complete_recursive_idx(node, idx):
         else:
             return None
     else:
-        return (node.object, node.start_time, node.completion_time)
+        return node.object, node.start_time, node.completion_time
 
 
 def ingest_dir(session, ingestdir):
@@ -419,7 +419,8 @@ def ingest_dir(session, ingestdir):
             newframe.uuid = meta['uuid']
             newframe.start_time = meta['observation_date']
             # No way of knowing when the readout ends...
-            newframe.completion_time = newframe.start_time + datetime.timedelta(seconds=meta['darktime'])
+            if meta['darktime'] is not None and newframe.start_time is not None:
+                newframe.completion_time = newframe.start_time + datetime.timedelta(seconds=meta['darktime'])
             newframe.exposure_time = meta['exptime']
             newframe.object = meta['object']
             ob.frames.append(newframe)
