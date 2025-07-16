@@ -58,7 +58,7 @@ base_db_info_keys = [
 def metadata_fits(obj, drps):
 
     # First. get instrument
-    objl = DataFrameType().convert(obj)
+    objl = DataFrameType().convert(str(obj))
 
     with objl.open() as hdulist:
         # get instrument
@@ -121,7 +121,7 @@ def ingest_control_file(session, path):
     print('insert task-control values from', path)
 
     with open(path) as fd:
-        data = yaml.load(fd)
+        data = yaml.safe_load(fd)
 
     res = data.get('requirements', {})
 
@@ -156,15 +156,16 @@ def ingest_control_file(session, path):
 def ingest_ob_file(session, path):
 
     drps = numina.drps.get_system_drps()
+    print(drps)
 
     print("mode ingest, ob file, path=", path)
-
+    ob_parent = path.parent
     obs_blocks = {}
     with open(path, 'r') as fd:
-        loaded_data = yaml.load_all(fd)
-
+        loaded_data = yaml.safe_load_all(fd)
         # complete the blocks...
         for el in loaded_data:
+            print(el)
             obs_blocks[el['id']] = el
 
     # FIXME: id could be UUID
@@ -197,7 +198,7 @@ def ingest_ob_file(session, path):
         ingestdir = 'data'
         meta_frames = []
         for fname in obs.frames:
-            full_fname = os.path.join(ingestdir, fname)
+            full_fname = ob_parent / ingestdir / fname
             print(fname, full_fname)
             result = metadata_fits(full_fname, drps)
             # numtype = result['type']
@@ -245,12 +246,17 @@ def ingest_ob_file(session, path):
 
     print('stage4')
     for key, obs in obs_blocks2.items():
+        print(obs.object)
         if obs.object is None:
-            o1, s1, c1 = complete_recursive_first(obs)
-            o2, s2, c2 = complete_recursive_last(obs)
-            obs.object = o1
-            obs.start_time = s1
-            obs.completion_time = c2
+            res1 = complete_recursive_first(obs)
+            if res1 is not None:
+                o1, s1, c1 = res1
+                obs.object = o1
+                obs.start_time = s1
+            res2 = complete_recursive_last(obs)
+            if res2 is not None:
+                o2, s2, c2 = res2
+                obs.completion_time = c2
 
     session.commit()
 

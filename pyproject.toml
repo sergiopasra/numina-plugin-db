@@ -26,7 +26,8 @@ classifiers = [
 ]
 dependencies = [
     "numina",
-    "sqlalchemy"
+    "sqlalchemy",
+    "pyyaml",
 ]
 
 [project.entry-points."numina.plugins.1"]
@@ -34,6 +35,7 @@ rundb = "numinadb.rundb:register"
 
 [project.optional-dependencies]
 test = [
+    "astropy",
     "pytest",
 ]
 

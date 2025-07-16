@@ -191,7 +191,7 @@ class ReductionResultValue(Base):
     __tablename__ = 'reduction_result_values'
     id = Column(Integer, primary_key=True)
     result_id = Column(Integer, ForeignKey('reduction_results.id'), nullable=False)
-    result = relationship("ReductionResult")
+    # result = relationship("ReductionResult")
     name = Column(String(45))
     datatype = Column(String(45))
     contents = Column(String(45))
