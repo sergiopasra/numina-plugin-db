@@ -1,3 +1,4 @@
+import numina.datamodel
 
 DB_PRODUCT_KEYS = [
     'instrument',
@@ -6,19 +7,5 @@ DB_PRODUCT_KEYS = [
     'quality_control'
 ]
 
-
-DB_FRAME_KEYS = [
-    'instrument',
-    'object',
-    'observation_date',
-    'uuid',
-    'type',
-    'mode',
-    'exptime',
-    'darktime',
-    'insconf',
-    'blckuuid',
-    'quality_control',
-    'vph',
-    'insmode'
-]
+# Candidate for removal
+DB_FRAME_KEYS = numina.datamodel.DataModel.db_info_keys.extend(['vph', 'insmode'])

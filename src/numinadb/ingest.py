@@ -19,6 +19,7 @@ from numina.types.frame import DataFrameType
 from numina.types.linescatalog import LinesCatalog
 from numina.types.structured import BaseStructuredCalibration
 from numina.util.context import working_directory
+import numina.datamodel
 import numina.store
 import numina.drps
 import yaml
@@ -28,20 +29,8 @@ from .model import ObservingBlockAlias
 from .model import ObservingBlock, Frame, Fact, DataProduct
 from .event import call_event
 
-
-base_db_info_keys = [
-    'instrument',
-    'object',
-    'observation_date',
-    'uuid',
-    'type',
-    'mode',
-    'exptime',
-    'darktime',
-    'insconf',
-    'blckuuid',
-    'quality_control'
-]
+# Basic keys from base datamodel
+BASE_DB_INFO_KEYS = numina.datamodel.DataModel.db_info_keys
 
 
 def metadata_fits(obj, drps):
@@ -70,7 +59,7 @@ def metadata_lis(obj):
     # workaround for PosixPath
     if isinstance(obj, pathlib.PosixPath):
         obj = str(obj)
-    result = LinesCatalog().extract_db_info(obj, base_db_info_keys)
+    result = LinesCatalog().extract_db_info(obj, BASE_DB_INFO_KEYS)
 
     head, tail = os.path.split(obj)
     base, ext = os.path.splitext(tail)
